@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">CustomCloudTest</string>
+    <string name="action_settings">Settings</string>
+</resources>
