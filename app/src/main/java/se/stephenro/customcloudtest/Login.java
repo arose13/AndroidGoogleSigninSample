@@ -1,7 +1,9 @@
 package se.stephenro.customcloudtest;
 
+import android.accounts.Account;
 import android.content.Intent;
 import android.content.IntentSender;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -12,6 +14,8 @@ import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
 
+import com.google.android.gms.auth.GoogleAuthException;
+import com.google.android.gms.auth.GoogleAuthUtil;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.Scopes;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -19,15 +23,25 @@ import com.google.android.gms.common.api.Scope;
 import com.google.android.gms.plus.Plus;
 import com.google.android.gms.plus.model.people.Person;
 
+import java.io.IOException;
+
+import retrofit.Call;
+import retrofit.GsonConverterFactory;
+import retrofit.JacksonConverterFactory;
+import retrofit.Retrofit;
+import se.stephenro.customcloudtest.api.GSPService;
+
 public class Login extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, View.OnClickListener {
 
     public static final String TAG = Login.class.getSimpleName();
+    public static final String SERVER_CLIENT_ID = "260943555378-md1kjfa8nq2q8he9no9r4m8m6v5ek27v.apps.googleusercontent.com";
 
     // Request code used to invoke sign in user interactions
     private static final int RC_SIGN_IN = 0;
 
     // Client used to interact with Google APIs
-    private GoogleApiClient mGoogleApiClient;
+    private GoogleApiClient googleApiClient;
+    private String userIdToken;
 
     // Sign-in button
     private View googleLoginButton;
@@ -57,7 +71,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
         });
 
         // Google Init
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
+        googleApiClient = new GoogleApiClient.Builder(this)
                 .addConnectionCallbacks(this)
                 .addOnConnectionFailedListener(this)
                 .addApi(Plus.API)
@@ -69,13 +83,13 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
     @Override
     protected void onStart() {
         super.onStart();
-        mGoogleApiClient.connect();
+        googleApiClient.connect();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        mGoogleApiClient.disconnect();
+        googleApiClient.disconnect();
     }
 
     @Override
@@ -112,17 +126,23 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
             }
 
             isResolving = false;
-            mGoogleApiClient.connect();
+            googleApiClient.connect();
         }
     }
 
     @Override
     public void onConnected(Bundle bundle) {
         // Connected. Get Whatever you need from the user here!
-        if (Plus.PeopleApi.getCurrentPerson(mGoogleApiClient) != null) {
-            Person currentPerson = Plus.PeopleApi.getCurrentPerson(mGoogleApiClient);
+        if (Plus.PeopleApi.getCurrentPerson(googleApiClient) != null) {
+            Person currentPerson = Plus.PeopleApi.getCurrentPerson(googleApiClient);
             Log.d(TAG, "Proof of successful login");
             Log.d(TAG, currentPerson.getDisplayName());
+
+            // TEST contacting the server with Retrofit
+            new ContactServer().execute();
+
+            // Get ID Token for Backend Access
+            //new GetIdTokenTask().execute();
         }
     }
 
@@ -136,7 +156,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
         switch (v.getId()) {
             case R.id.sign_in_button:
                 shouldResolve = true;
-                mGoogleApiClient.connect();
+                googleApiClient.connect();
                 Log.d(TAG, "Signing in");
         }
     }
@@ -156,7 +176,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
                 } catch (IntentSender.SendIntentException e) {
                     Log.e(TAG, "Could not resolve ConnectionResult", e);
                     isResolving = false;
-                    mGoogleApiClient.connect();
+                    googleApiClient.connect();
                 }
             } else {
                 // Could not resolve the connection result, show the user an error dialog
@@ -169,4 +189,75 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
             //showSignedOutUI();
         }
     }
+
+    private class ContactServer extends AsyncTask<Void, Void, String> {
+
+        @Override
+        protected String doInBackground(Void... params) {
+            Log.i(TAG, "Attempting to contact the server");
+            sendTokenToServer();
+            return null;
+        }
+
+    }
+
+    private class GetIdTokenTask extends AsyncTask<Void, Void, String> {
+
+        @Override
+        protected String doInBackground(Void... params) {
+            String accountName = Plus.AccountApi.getAccountName(googleApiClient);
+            Account account = new Account(accountName, GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE);
+            String scopes = "audience:server:client_id:" + SERVER_CLIENT_ID; // Not the app's client ID.
+            try {
+                userIdToken = GoogleAuthUtil.getToken(getApplicationContext(), account, scopes);
+
+                return userIdToken;
+            } catch (IOException e) {
+                Log.e(TAG, "IOError retrieving ID token.", e);
+                return null;
+            } catch (GoogleAuthException e) {
+                Log.e(TAG, "GoogleAuthError retrieving ID token.", e);
+                return null;
+            }
+        }
+
+        @Override
+        protected void onPostExecute(String result) {
+            if (result != null) {
+                // Successfully retrieved ID Token
+                Log.i(TAG, "ID token: " + result);
+                //sendTokenToServer(); This is the real location for the SendToken method
+            } else {
+                // There was some error getting the ID Token
+                // I don't know why this would happen to be honest
+                Log.e(TAG, "ID token was null!");
+            }
+        }
+
+    }
+
+    // Send Token to the server using Retrofit
+    private void sendTokenToServer() {
+        // Create a very simple REST adapter which points the GSP API
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(GSPService.BASE_URL)
+                .addConverterFactory(JacksonConverterFactory.create())
+                .build();
+
+        // Create an instance of our GSP API interface
+        GSPService.BackendApi gspApi = retrofit.create(GSPService.BackendApi.class);
+
+        // Create a call instance for getting the test data from GSP
+        Call<GSPService.TestData> call = gspApi.testResp();
+
+        // Fetch and output the response
+        try {
+            GSPService.TestData testData = call.execute().body();
+            Log.d(TAG, testData.getTitle() + " : " + testData.getContent());
+        } catch (IOException e) {
+            e.printStackTrace();
+            Log.e(TAG, "Trouble getting TestData");
+        }
+    }
+
 }
