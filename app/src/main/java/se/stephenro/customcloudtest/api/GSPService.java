@@ -5,6 +5,10 @@ import retrofit.http.POST;
 
 /**
  * Created by Anthony on 10/12/2015.
+ * For the TestData object to work properly with Jackson you need...
+ * - The class to be static
+ * - A protected dummy class
+ * - Getters and Setters for all the fields
  */
 public class GSPService {
 

@@ -16,6 +16,7 @@ import android.view.MenuItem;
 
 import com.google.android.gms.auth.GoogleAuthException;
 import com.google.android.gms.auth.GoogleAuthUtil;
+import com.google.android.gms.auth.UserRecoverableAuthException;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.Scopes;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -37,7 +38,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
     public static final String SERVER_CLIENT_ID = "260943555378-md1kjfa8nq2q8he9no9r4m8m6v5ek27v.apps.googleusercontent.com";
 
     // Request code used to invoke sign in user interactions
-    private static final int RC_SIGN_IN = 0;
+    private static final int RC_SIGN_IN = 571992;
 
     // Client used to interact with Google APIs
     private GoogleApiClient googleApiClient;
@@ -76,7 +77,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
                 .addOnConnectionFailedListener(this)
                 .addApi(Plus.API)
                 .addScope(new Scope(Scopes.PROFILE))
-                .addScope(new Scope((Scopes.EMAIL)))
+                .addScope(new Scope(Scopes.EMAIL))
                 .build();
     }
 
@@ -137,12 +138,13 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
             Person currentPerson = Plus.PeopleApi.getCurrentPerson(googleApiClient);
             Log.d(TAG, "Proof of successful login");
             Log.d(TAG, currentPerson.getDisplayName());
+            //googleLoginButton.setVisibility(View.INVISIBLE);
 
-            // TEST contacting the server with Retrofit
+            // Test contacting the server with Retrofit was Successful
             new ContactServer().execute();
 
             // Get ID Token for Backend Access
-            //new GetIdTokenTask().execute();
+            new GetIdTokenTask().execute();
         }
     }
 
@@ -207,13 +209,20 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
         protected String doInBackground(Void... params) {
             String accountName = Plus.AccountApi.getAccountName(googleApiClient);
             Account account = new Account(accountName, GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE);
-            String scopes = "audience:server:client_id:" + SERVER_CLIENT_ID; // Not the app's client ID.
-            try {
-                userIdToken = GoogleAuthUtil.getToken(getApplicationContext(), account, scopes);
+            String scopes = "oauth2:profile email";
+            //String scopes = "audience:server:client_id:" + SERVER_CLIENT_ID; // Not the app's client ID.
+            Log.d(TAG, "Account Name: " + accountName);
+            Log.d(TAG, "Scopes: " + scopes);
 
+            try {
+                //userIdToken = GoogleAuthUtil.getToken(getApplicationContext(), account, scopes); what about the previous statement prevented acquisition of the token?
+                userIdToken = GoogleAuthUtil.getToken(getApplicationContext(), accountName, scopes);
                 return userIdToken;
             } catch (IOException e) {
                 Log.e(TAG, "IOError retrieving ID token.", e);
+                return null;
+            } catch (UserRecoverableAuthException e) {
+                startActivityForResult(e.getIntent(), RC_SIGN_IN);
                 return null;
             } catch (GoogleAuthException e) {
                 Log.e(TAG, "GoogleAuthError retrieving ID token.", e);
@@ -253,6 +262,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
         // Fetch and output the response
         try {
             GSPService.TestData testData = call.execute().body();
+            Log.d(TAG, "Successfully got TestData!");
             Log.d(TAG, testData.getTitle() + " : " + testData.getContent());
         } catch (IOException e) {
             e.printStackTrace();
