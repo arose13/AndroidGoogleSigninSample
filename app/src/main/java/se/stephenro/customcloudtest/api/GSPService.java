@@ -16,6 +16,11 @@ public class GSPService {
     public static final String BASE_URL = "https://gsproject-api.herokuapp.com";
 
     /**
+     * This is specific to the backend and THIS IS NOT THE ANDROID CLIENT CODE
+     */
+    public static final String SERVER_CLIENT_ID = "260943555378-md1kjfa8nq2q8he9no9r4m8m6v5ek27v.apps.googleusercontent.com";
+
+    /**
      * The BackendApi is used to make request calls to the server
      * - The object inside the Call<> is what the data will be placed in
      */

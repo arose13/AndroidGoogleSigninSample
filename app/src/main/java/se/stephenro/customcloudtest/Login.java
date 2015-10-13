@@ -35,7 +35,6 @@ import se.stephenro.customcloudtest.api.GSPService;
 public class Login extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, View.OnClickListener {
 
     public static final String TAG = Login.class.getSimpleName();
-    public static final String SERVER_CLIENT_ID = "260943555378-md1kjfa8nq2q8he9no9r4m8m6v5ek27v.apps.googleusercontent.com";
 
     // Request code used to invoke sign in user interactions
     private static final int RC_SIGN_IN = 571992;
@@ -235,7 +234,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
             if (result != null) {
                 // Successfully retrieved ID Token
                 Log.i(TAG, "ID token: " + result);
-                //sendTokenToServer(); This is the real location for the SendToken method
+                sendTokenToServer();
             } else {
                 // There was some error getting the ID Token
                 // I don't know why this would happen to be honest
@@ -247,6 +246,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
 
     // Send Token to the server using Retrofit
     private void sendTokenToServer() {
+
         // Create a very simple REST adapter which points the GSP API
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(GSPService.BASE_URL)
@@ -264,6 +264,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
             GSPService.TestData testData = call.execute().body();
             Log.d(TAG, "Successfully got TestData!");
             Log.d(TAG, testData.getTitle() + " : " + testData.getContent());
+
         } catch (IOException e) {
             e.printStackTrace();
             Log.e(TAG, "Trouble getting TestData");
