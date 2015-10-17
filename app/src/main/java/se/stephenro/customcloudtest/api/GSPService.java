@@ -1,6 +1,7 @@
 package se.stephenro.customcloudtest.api;
 
 import retrofit.Call;
+import retrofit.http.Body;
 import retrofit.http.POST;
 
 /**
@@ -18,7 +19,7 @@ public class GSPService {
     /**
      * This is specific to the backend and THIS IS NOT THE ANDROID CLIENT CODE
      */
-    public static final String SERVER_CLIENT_ID = "260943555378-md1kjfa8nq2q8he9no9r4m8m6v5ek27v.apps.googleusercontent.com";
+    public static final String SERVER_CLIENT_ID = "158330931359-n3q9bnt9vfi0i7ostmlk3rn5n99153jk.apps.googleusercontent.com";
 
     /**
      * The BackendApi is used to make request calls to the server
@@ -28,6 +29,9 @@ public class GSPService {
 
         @POST("/")
         Call<TestData> testResp();
+
+        @POST("/")
+        Call<TestData> testResp(@Body TokenPayload tokenPayload);
 
     }
 
@@ -63,6 +67,27 @@ public class GSPService {
 
         public void setContent(String content) {
             this.content = content;
+        }
+    }
+
+    /**
+     * This is the TokenPayload to be sent when you've got the Token!!!
+     */
+    public static class TokenPayload {
+        private final String email;
+        private final String token;
+
+        public TokenPayload(String email, String token) {
+            this.email = email;
+            this.token = token;
+        }
+
+        public String getEmail() {
+            return email;
+        }
+
+        public String getToken() {
+            return token;
         }
     }
 }

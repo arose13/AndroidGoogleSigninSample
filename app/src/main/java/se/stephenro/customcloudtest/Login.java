@@ -10,9 +10,9 @@ import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 
 import com.google.android.gms.auth.GoogleAuthException;
 import com.google.android.gms.auth.GoogleAuthUtil;
@@ -27,9 +27,9 @@ import com.google.android.gms.plus.model.people.Person;
 import java.io.IOException;
 
 import retrofit.Call;
-import retrofit.GsonConverterFactory;
 import retrofit.JacksonConverterFactory;
 import retrofit.Retrofit;
+
 import se.stephenro.customcloudtest.api.GSPService;
 
 public class Login extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, View.OnClickListener {
@@ -41,7 +41,6 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
 
     // Client used to interact with Google APIs
     private GoogleApiClient googleApiClient;
-    private String userIdToken;
 
     // Sign-in button
     private View googleLoginButton;
@@ -139,9 +138,6 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
             Log.d(TAG, currentPerson.getDisplayName());
             //googleLoginButton.setVisibility(View.INVISIBLE);
 
-            // Test contacting the server with Retrofit was Successful
-            new ContactServer().execute();
-
             // Get ID Token for Backend Access
             new GetIdTokenTask().execute();
         }
@@ -195,7 +191,7 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
 
         @Override
         protected String doInBackground(Void... params) {
-            Log.i(TAG, "Attempting to contact the server");
+            Log.i(TAG, "Attempting to send an ORDINARY request to the server");
             sendTokenToServer();
             return null;
         }
@@ -206,27 +202,34 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
 
         @Override
         protected String doInBackground(Void... params) {
-            String accountName = Plus.AccountApi.getAccountName(googleApiClient);
-            Account account = new Account(accountName, GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE);
-            String scopes = "oauth2:profile email";
-            //String scopes = "audience:server:client_id:" + SERVER_CLIENT_ID; // Not the app's client ID.
-            Log.d(TAG, "Account Name: " + accountName);
+            // Prep Accounts and Scopes
+            final String userEmail = Plus.AccountApi.getAccountName(googleApiClient);
+            final Account account = new Account(userEmail, GoogleAuthUtil.GOOGLE_ACCOUNT_TYPE);
+            String scopes = "audience:server:client_id:" + GSPService.SERVER_CLIENT_ID;
+            Log.d(TAG, "Account Email: " + userEmail);
             Log.d(TAG, "Scopes: " + scopes);
 
+            // Attempt to get Token
             try {
-                //userIdToken = GoogleAuthUtil.getToken(getApplicationContext(), account, scopes); what about the previous statement prevented acquisition of the token?
-                userIdToken = GoogleAuthUtil.getToken(getApplicationContext(), accountName, scopes);
+                String userIdToken = GoogleAuthUtil.getToken(getApplicationContext(), account, scopes);
+                Log.d(TAG, "Attempting to send an AUTHORISED request to the server");
+                sendTokenToServer(userIdToken, userEmail);
                 return userIdToken;
+
             } catch (IOException e) {
                 Log.e(TAG, "IOError retrieving ID token.", e);
                 return null;
+
             } catch (UserRecoverableAuthException e) {
                 startActivityForResult(e.getIntent(), RC_SIGN_IN);
                 return null;
+
             } catch (GoogleAuthException e) {
                 Log.e(TAG, "GoogleAuthError retrieving ID token.", e);
                 return null;
+
             }
+
         }
 
         @Override
@@ -234,7 +237,6 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
             if (result != null) {
                 // Successfully retrieved ID Token
                 Log.i(TAG, "ID token: " + result);
-                sendTokenToServer();
             } else {
                 // There was some error getting the ID Token
                 // I don't know why this would happen to be honest
@@ -246,8 +248,10 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
 
     // Send Token to the server using Retrofit
     private void sendTokenToServer() {
+        sendTokenToServer(null, null);
+    }
 
-        // Create a very simple REST adapter which points the GSP API
+    private void sendTokenToServer(String authToken, String email) {
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(GSPService.BASE_URL)
                 .addConverterFactory(JacksonConverterFactory.create())
@@ -257,7 +261,14 @@ public class Login extends AppCompatActivity implements GoogleApiClient.Connecti
         GSPService.BackendApi gspApi = retrofit.create(GSPService.BackendApi.class);
 
         // Create a call instance for getting the test data from GSP
-        Call<GSPService.TestData> call = gspApi.testResp();
+        Call<GSPService.TestData> call;
+        if (authToken == null) {
+            // This is an unauthorised request
+            call = gspApi.testResp();
+        } else {
+            // This is an authorised request
+            call = gspApi.testResp(new GSPService.TokenPayload(email, authToken));
+        }
 
         // Fetch and output the response
         try {
